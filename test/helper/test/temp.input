@@ -1,0 +1,103 @@
+" vim:set ft=vim ts=8 sts=2 sw=2 tw=0:
+source ../temp.vim
+call vspec#hint({'scope': 'g:temp_scope()', 'sid': 'g:temp_sid()'})
+
+source ../buffer.vim
+
+func! s:describe__Empty()
+  It should all objects be empty when start
+
+  Should Ref("s:temp_src") == ""
+  Should Ref("s:temp_files") == []
+endf
+
+func! s:describe__MakeTemporaryName()
+  It should make temporary file
+
+  MakeTempName noent.txt
+  let l:temp = g:temp_get(0)
+  Should [l:temp] == Ref("s:temp_files")
+  Should "" != Ref("s:temp_root")
+  Should filereadable(l:temp) == 0
+
+  CleanTemp
+endf
+
+func! s:describe__MakeTemporaryFile()
+  It should make temporary file
+
+  MakeTempFile new_file.txt
+  let l:temp = g:temp_get(0)
+  Should Ref("s:temp_files") == [l:temp]
+  Should filereadable(l:temp) != 0
+
+  CleanTemp
+endf
+
+func! s:describe__MakeTemporaryDir()
+  It should make temporary directory
+
+  MakeTempDir test
+
+  let l:temp = g:temp_get(0)
+  Should Ref("s:temp_files") == [l:temp]
+  Should isdirectory(l:temp) != 0
+
+  CleanTemp
+endf
+
+func! s:describe__AccessTemporary()
+  It should make temporary file
+
+  MakeTempFile new_file.txt
+  execute ":silent! edit ".g:temp_get(0)
+  Should g:temp_bufnr(0) == bufnr(g:temp_get(0))
+
+  WipeoutAllBuffers
+  CleanTemp
+endf
+
+func! s:describe__CopyTempSource()
+  It should copy source file
+
+  SetTempSourcePath data
+  MakeTempFile hello.txt
+
+  let l:temp = g:temp_get(0)
+  Should Ref("s:temp_files") == [l:temp]
+  Should filereadable(l:temp) != 0
+  Should readfile(l:temp,'',-1)[0] == "hello!"
+
+  CleanTemp
+endf
+
+func! s:describe__CleanTempSource()
+  It should set empty temporary source
+
+  SetTempSourcePath data
+
+  CleanTemp
+  Should Ref("s:temp_src") == ""
+endf
+
+func! s:describe__CleanTemporaryFile()
+  It should clean temporary file
+
+  MakeTempFile new_file.txt
+
+  let l:temp = g:temp_get(0)
+  CleanTemp
+  Should Ref("s:temp_files") == []
+  Should filereadable(l:temp) == 0
+endf
+
+func! s:describe__CleanTemporaryDir()
+  It should make temporary directory
+
+  MakeTempDir test
+
+  let l:temp = g:temp_get(0)
+  CleanTemp
+  Should Ref("s:temp_files") == []
+  Should isdirectory(l:temp) == 0
+endf

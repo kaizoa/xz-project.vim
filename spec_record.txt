@@ -1,0 +1,24 @@
+#source_entry={"path":"path", "&project":"project-ref"}
+#lib_entry={"archive_path":"path", "source_path":"path"}
+
+l:source_entries_all=[&source_entry...] DESC
+l:projects=[&project...]
+
+workspace={
+  "path":"path",
+  "projects":[&project...]
+}
+
+project={
+  "name":"project-name",
+  "path":"path",
+  "extends":{"kind":&extend...},
+  "timestamp":"time-stamp",
+  "source_entries":[&source_entry...] DESC,
+  "lib_entries":[&lib_entry...]
+}
+
+#java_extend={"runtime_environment":"runtime-name"}
+l:java_runtime={
+  "name":{}
+}
