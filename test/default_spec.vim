@@ -1,109 +1,118 @@
 " vim:set ft=vim ts=8 sts=2 sw=2 tw=0:
-call vspec#hint({'scope': 'projectrc#_scope()', 'sid': 'projectrc#_sid()'})
+call vspec#hint({'scope': 'projectrc#scope()', 'sid': 'projectrc#sid()'})
 
-source helper/temp.vim
-source helper/buffer.vim
-source ../plugin/projectrc.vim
-
-func! s:describe__DefaultSpec_ProjectrcProjects()
-  It should be default when initial state.
-
-  let l:entries = Ref("s:rt").entries
-
-  Should l:entries != 0
-  Should len(keys(l:entries))      == 4
-  " fields
-  Should type(l:entries['map'])    == type({})
-  " methods
-  Should type(l:entries['get'])    == type(function("tr"))
-  Should type(l:entries['put'])    == type(function("tr"))
-  Should type(l:entries['remove']) == type(function("tr"))
-  " initial values
-  "Should l:entries.map             == {}
+func! _require(path)
+  for script_file in split(globpath(&runtimepath, a:path), '\n')
+    execute "source " . script_file
+    break
+  endfor
 endf
 
-func! s:describe__DefaultSpec_ProjectrcPathLink()
-  It should be default when initial state.
+call _require("plugin/projectrc.vim")
+call _require("test/helper/temp.vim")
+call _require("test/helper/buffer.vim")
 
-  let l:path_link = Ref("s:rt").path_link
+describe 'Runtime'
 
-  Should l:path_link != 0
-  Should len(keys(l:path_link))     == 4
-  " fields
-  Should type(l:path_link['table']) == type({})
-  " methods
-  Should type(l:path_link['link_entry'])    == type(function("tr"))
-  Should type(l:path_link['unlink_entry'])  == type(function("tr"))
-  Should type(l:path_link['search_entries']) == type(function("tr"))
-  " initial values
-  Should l:path_link.table == {}
-endf
+  before
+    let g:rt = Call('s:get_runtime')
+  end
 
-func! s:describe__DefaultSpec_ProjectrcBuffer()
-  It should be default when buffer constructed
+  after
+    unlet g:rt
+  end
 
-  MakeTempFile NoExist.java
+  it 'フィールド定義'
+    Expect type(g:rt.entries)   == type({})
+    Expect type(g:rt.path_link) == type({})
+  end
 
-  " construction
-  execute ":silent! edit " . g:temp_get(0)
-  let l:buffer = getbufvar(g:temp_bufnr(0), "projectrc_buffer")
+  it 'フィールド初期値'
+    Expect g:rt.entries   == {}
+    Expect g:rt.path_link == {}
+  end
 
-  Should l:buffer != 0
-  Should len(keys(l:buffer))              == 6
-  " fields
-  Should type(l:buffer['number'])         == type(0)
-  Should type(l:buffer['filepath'])       == type("")
-  Should type(l:buffer['ref_entries'])   == type([])
-  " methods
-  Should type(l:buffer['link_entry'])   == type(function("tr"))
-  Should type(l:buffer['unlink_entry']) == type(function("tr"))
-  Should type(l:buffer['release'])        == type(function("tr"))
-  " initial values
-  Should l:buffer.number       == bufnr(g:temp_get(0))
-  Should l:buffer.filepath     == fnamemodify(g:temp_get(0), ":p")
-  Should l:buffer.ref_entries == []
+  it 'メソッド定義'
+    Expect type(g:rt['init_workingset']) == type(function("tr"))
+    Expect type(g:rt['get_entry'])       == type(function("tr"))
+    Expect type(g:rt['put_entry'])       == type(function("tr"))
+    Expect type(g:rt['remove_entry'])    == type(function("tr"))
+    Expect type(g:rt['link_entry'])      == type(function("tr"))
+    Expect type(g:rt['unlink_entry'])    == type(function("tr"))
+    Expect type(g:rt['search_entries'])  == type(function("tr"))
+  end
+end
 
-  " destruction
-  WipeoutAllBuffers
+describe 'Buffer'
 
-  CleanTemp
-endf
+  before
+    MakeTempFile NoExist.java
+    execute ":silent! edit " . g:temp_get(0)
+    let g:buffer = getbufvar(g:temp_bufnr(0), "projectrc_buffer")
+  end
 
-func! s:describe__DefaultSpec_ProjectrcProject()
-  It should be default when entry constructed
+  after
+    WipeoutAllBuffers
+    CleanTemp
+    unlet g:buffer
+  end
 
-  MakeTempDir  Sample
+  it 'フィールド定義'
+    Expect type(g:buffer['number'])      == type(0)
+    Expect type(g:buffer['filepath'])    == type("")
+    Expect type(g:buffer['ref_entries']) == type([])
+  end
 
-  " construction
-  execute "ProjectrcOpen " . g:temp_get(0)
-  let l:temp = Call("s:normalize_path", fnamemodify(g:temp_get(0),":p"))
-  let l:entry = Ref("s:rt").entries.get(g:temp_get(0))
+  it 'フィールド初期値'
+    Expect g:buffer.number      == bufnr(g:temp_get(0))
+    Expect g:buffer.filepath    == fnamemodify(g:temp_get(0), ":p")
+    Expect g:buffer.ref_entries == []
+  end
 
-  Should l:entry != 0
-  Should len(keys(l:entry))             == 10
-  " fields
-  Should type(l:entry['path'])          == type("")
-  Should type(l:entry['is_init'])       == type(0)
-  Should type(l:entry['timestamp'])     == type(0)
-  Should type(l:entry['ref_paths'])     == type([])
-  Should type(l:entry['ref_buffers'])   == type([])
-  " methods
-  Should type(l:entry['init'])          == type(function("tr"))
-  Should type(l:entry['release'])       == type(function("tr"))
-  Should type(l:entry['link_path'])     == type(function("tr"))
-  Should type(l:entry['link_buffer'])   == type(function("tr"))
-  Should type(l:entry['unlink_buffer']) == type(function("tr"))
-  " initial values
-  Should l:entry['path']          == l:temp
-  Should l:entry['is_init']       == 1
-  Should l:entry['timestamp']     == 0
-  Should l:entry['ref_paths']     == [l:temp]
-  Should l:entry['ref_buffers']   == []
+  it 'メソッド定義'
+    Expect type(g:buffer['link_entry'])   == type(function("tr"))
+    Expect type(g:buffer['unlink_entry']) == type(function("tr"))
+    Expect type(g:buffer['release'])      == type(function("tr"))
+  end
+end
 
-  " destruction
-  execute "ProjectrcClose " . g:temp_get(0)
+describe 'Entry'
 
-  WipeoutAllBuffers
-  CleanTemp
-endf
+  before
+    MakeTempDir  Sample
+    execute "ProjectrcOpen " . g:temp_get(0)
+    let g:temp = Call("s:normalize_path", fnamemodify(g:temp_get(0),":p"))
+    let g:entry = Call("s:get_runtime").get_entry(g:temp_get(0))
+  end
+
+  after
+    execute "ProjectrcClose " . g:temp_get(0)
+    WipeoutAllBuffers
+    CleanTemp
+    unlet g:temp
+    unlet g:entry
+  end
+
+  it 'フィールド定義'
+    Expect type(g:entry['path'])        == type("")
+    Expect type(g:entry['is_init'])     == type(0)
+    Expect type(g:entry['ref_paths'])   == type([])
+    Expect type(g:entry['ref_buffers']) == type([])
+  end
+
+  it 'フィールド初期値'
+    Expect g:entry['path']        == g:temp
+    Expect g:entry['is_init']     == 1
+    Expect g:entry['ref_paths']   == [g:temp]
+    Expect g:entry['ref_buffers'] == []
+  end
+
+  it 'メソッド定義'
+    Expect type(g:entry['init'])          == type(function("tr"))
+    Expect type(g:entry['release'])       == type(function("tr"))
+    Expect type(g:entry['link_path'])     == type(function("tr"))
+    Expect type(g:entry['link_buffer'])   == type(function("tr"))
+    Expect type(g:entry['unlink_buffer']) == type(function("tr"))
+  end
+end
 
