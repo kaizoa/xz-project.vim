@@ -1,112 +1,121 @@
 " vim:set ft=vim ts=8 sts=2 sw=2 tw=0:
-call vspec#hint({'scope': 'projectrc#_scope()', 'sid': 'projectrc#_sid()'})
+call vspec#hint({'scope': 'projectrc#scope()', 'sid': 'projectrc#sid()'})
 
-source helper/temp.vim
-source helper/buffer.vim
-source ../plugin/projectrc.vim
+require 'plugin/projectrc'
+require 'test/lib/temp'
+require 'test/lib/buffer'
 
-func! s:describe__OpenProject()
-  It should open entry
+describe 'プロジェクトを開く'
 
-  MakeTempDir  Sample
-  let l:temp = Call("s:normalize_path", fnamemodify(g:temp_get(0),":p"))
+  before
+    let g:rt = Call('s:get_runtime')
+    let g:dir = temp#new_dir('Sample')
+    execute "ProjectrcOpen " . g:dir
+  end
 
-  execute "ProjectrcOpen " . g:temp_get(0)
-  Should Ref("s:rt").entries.get(g:temp_get(0)) != 0
-  Should Ref("s:rt").path_link.search_entries(g:temp_get(0)) == [l:temp]
+  after
+    execute "ProjectrcClose " . g:dir
+    call buffer#wipeoutall()
+    call temp#clean()
+  end
 
-  execute "ProjectrcClose " . g:temp_get(0)
+  it 'プロジェクトがエントリーに追加されている'
+    Expect g:rt.get_entry(g:dir) != 0
+  end
 
-  WipeoutAllBuffers
-  CleanTemp
-endf
+  it 'エントリーの絶対パスがランタイムに追加されている'
+    let l:temp = Call("s:normalize_path", fnamemodify(g:dir,":p"))
+    Expect g:rt.search_entries(g:dir) == [l:temp]
+  end
+end
 
-func! s:describe__OpenProjectWithScriptRan()
-  It should open entry
+"describe 'OpenProjectWithRCScript'
+  
+  "before
+    "MakeTempDir  Sample
+    "MakeTempFile Sample/.project.vimrc
+    "execute "ProjectrcOpen " . temp#get(0)
+    "let g:rt = Call('s:get_runtime')
+  "end
 
-  MakeTempDir  Sample
-  MakeTempFile Sample/.project.vimrc
+  "after
+    "execute "ProjectrcClose " . temp#get(0)
+    "call buffer#wipeoutall()
+    "call temp#clean()
+  "end
+"endf
 
-  execute "ProjectrcOpen " . g:temp_get(0)
-  let l:entry = Ref("s:rt").entries.get(g:temp_get(0))
-  Should l:entry['timestamp'] == getftime(g:temp_get(0))
+describe '編集中にプロジェクトを開く'
 
-  execute "ProjectrcClose " . g:temp_get(0)
+  before
+    let g:dir = temp#new_dir('Sample')
+    let g:file = temp#new_file('Sample/.projectrc')
+    execute ":silent! edit " . g:file
+    execute "ProjectrcOpen " . g:dir
+    let g:entry = Call("s:get_runtime").get_entry(g:dir)
+    let g:buffer = getbufvar(bufnr(g:file), "projectrc_buffer")
+  end
 
-  WipeoutAllBuffers
-  CleanTemp
-endf
+  after
+    call buffer#wipeoutall()
+    execute "ProjectrcClose " . g:dir
+    call temp#clean()
+  end
 
-func! s:describe__OpenProjectWhenBufferOpened()
-  It should be default when buffer constructed
+  it 'バッファがプロジェクトを保持している'
+    Expect g:buffer.ref_entries == [g:entry.path]
+  end
 
-  MakeTempDir  Sample
-  MakeTempFile Sample/.projectrc
+  it 'プロジェクトを開いてるバッファ番号を保持している'
+    Expect g:entry.ref_buffers == [g:buffer.number]
+  end
 
-  execute ":silent! edit " . g:temp_get(1)
-  execute "ProjectrcOpen " . g:temp_get(0)
-  let l:entry = Ref("s:rt").entries.get(g:temp_get(0))
-  let l:buffer = getbufvar(g:temp_bufnr(1), "projectrc_buffer")
+  it 'バッファを消すとプロジェクトに保持されているバッファ番号も消える'
+    call buffer#wipeoutall()
+    Expect g:entry.ref_buffers == []
+  end
+end
 
-  Should l:buffer.ref_entries == [l:entry.path]
-  Should l:entry.ref_buffers == [l:buffer.number]
+describe 'プロジェクトを閉じる'
 
-  WipeoutAllBuffers
+  before
+    let g:dir = temp#new_dir('Sample')
+    execute "ProjectrcOpen " . g:dir
+    execute "ProjectrcClose " . g:dir
+  end
 
-  Should l:entry.ref_buffers == []
+  after
+    call buffer#wipeoutall()
+    call temp#clean()
+  end
 
-  execute "ProjectrcClose " . g:temp_get(0)
+  it 'ランタイムのプロジェクトは空'
+    Expect Call("s:get_runtime").get_entry(g:dir) == 0
+  end
 
-  CleanTemp
-endf
+  it 'ランタイムのリンクは空'
+    Expect Call("s:get_runtime").search_entries(g:dir) == []
+  end
 
-func! s:describe__CloseProject()
-  It should close entry
+  it '二度閉じる'
+    execute "ProjectrcClose " . g:dir
+  end
+end
 
-  MakeTempDir  Sample
+describe '保存前のファイル'
 
-  execute "ProjectrcOpen " . g:temp_get(0)
-  execute "ProjectrcClose " . g:temp_get(0)
+  before
+    let g:file = temp#new('noent.txt')
+    execute ":silent! edit " . g:file
+    let g:buffer = getbufvar(bufnr(g:file), "projectrc_buffer")
+  end
 
-  Should Ref("s:rt").entries.get(g:temp_get(0)) == 0
-  Should Ref("s:rt").path_link.search_entries(g:temp_get(0)) == []
+  after
+    call buffer#wipeoutall()
+    call temp#clean()
+  end
 
-  WipeoutAllBuffers
-  CleanTemp
-endf
-
-func! s:describe__OpenBufferWhenProjectOpened()
-  It should be default when buffer constructed
-
-  MakeTempDir  Sample
-  MakeTempFile Sample/.projectrc
-
-  execute "ProjectrcOpen " . g:temp_get(0)
-  execute ":silent! edit " . g:temp_get(1)
-  let l:entry = Ref("s:rt").entries.get(g:temp_get(0))
-  let l:buffer = getbufvar(g:temp_bufnr(1), "projectrc_buffer")
-
-  Should l:buffer.ref_entries == [l:entry.path]
-  Should l:entry.ref_buffers == [l:buffer.number]
-
-  execute "ProjectrcClose " . g:temp_get(0)
-
-  Should l:buffer.ref_entries == []
-
-  WipeoutAllBuffers
-  CleanTemp
-endf
-
-func! s:describe__Buffer_OpenNOENT()
-  It should empty buffer
-
-  MakeTempName noent.txt
-
-  execute ":silent! edit " . g:temp_get(0)
-  let l:buffer = getbufvar(g:temp_bufnr(0), "projectrc_buffer")
-  Should type(l:buffer) == type({})
-  Should len(l:buffer) != 0
-
-  WipeoutAllBuffers
-  CleanTemp
-endf
+  it 'バッファが作成されている'
+    Expect type(g:buffer) == type({})
+  end
+end

@@ -5,8 +5,9 @@ set cpo&vim
 
 augroup Projectrc
   au! 
-  au BufAdd * call projectrc#au_BufAdd(str2nr(expand("<abuf>")))
-  au BufWipeout  * call projectrc#au_BufWipeout(str2nr(expand("<abuf>")))
+  au BufAdd     * call projectrc#au_BufAdd(str2nr(expand("<abuf>")))
+  au Filetype   * call projectrc#au_Filetype(str2nr(expand("<abuf>")))
+  au BufWipeout * call projectrc#au_BufWipeout(str2nr(expand("<abuf>")))
 augroup END
 
 " プロジェクトを開きます
@@ -21,7 +22,7 @@ func! projectrc#cmd_Open(entry_path)
     let l:entry = s:Entry(l:rt, l:path_abs)
   endif
 
-  call l:entry.init( globpath(l:path_abs, ".project.vimrc") )
+  call l:entry.init(globpath(l:path_abs, ".project.vimrc") )
 endf
 
 " プロジェクトを閉じます。
@@ -50,12 +51,33 @@ func! projectrc#au_BufWipeout(buffer_num)
   endif
 endf
 
-func! projectrc#get_rc_context()
-  if exists("s:rc_context")
-    return s:rc_context
+func! projectrc#au_Filetype(buffer_num)
+  let l:buffer = getbufvar(a:buffer_num, "projectrc_buffer")
+  if !empty(l:buffer)
+    for path in l:buffer.ref_entries
+      let l:entry = s:get_runtime().get_entry(path)
+      if !empty(l:entry)
+        call l:entry.handle_bufevent('on_filetype', a:buffer_num, [a:buffer_num])
+      endif
+    endfor
+  endif
+endf
+
+func! projectrc#new_context()
+  let l:rc = s:get_runtime()
+  if exists("s:rc_entry")
+    let l:id = str2nr(strftime("%Y%m%d%H%M%S"),16)
+    let l:ctx = s:Context(l:id, s:rc_entry)
+    call add(s:rc_entry.contexts, l:ctx)
+    let l:rc.contexts[l:id]=l:ctx
+    return l:ctx
   endif
 
   return 0
+endf
+
+func! projectrc#get_context(id)
+  return s:get_runtime().contexts[a:id]
 endf
 
 func! projectrc#log(...)
@@ -80,6 +102,7 @@ func! s:Runtime()
     \'workingset' : 'default',
     \'entries'    : {},
     \'path_link'  : {},
+    \'contexts'   : {},
     \'log' : []
   \}
 
@@ -175,28 +198,45 @@ func! s:Entry(rt, path_abs)
     \"path"        : l:path_abs,
     \"is_init"     : 0,
     \"ref_paths"   : [],
-    \"ref_buffers" : []
+    \"ref_buffers" : [],
+    \"variables"   : {},
+    \"contexts"    : []
   \}
 
   " 初期化スクリプトを読み込む
   func! l:entry.init(rc_path) dict
+
     if self.is_init
       call self.release()
     endif
     call self.link_path(self.path)
+
     " load
-    let s:rc_context = self
+    let s:rc_entry = self
     if filereadable(a:rc_path)
       try
         execute ":source" . a:rc_path
       catch
+        call projectrc#log('!error read rc')
         " TODO quickfix
         "echo v:throwpoint
         " TODO オブジェクトを捨てる
       endtry
     endif
     let self.is_init=1
-    unlet s:rc_context
+    unlet s:rc_entry
+
+    let l:bufnrs = s:get_named_buffers()
+    for i in l:bufnrs
+      if self.path <=# fnamemodify(bufname(i), ":p")
+        call self.link_buffer(i)
+        let l:buffer = s:Buffer(self.rt, i)
+        if !empty(l:buffer)
+          call l:buffer.link_entry(self)
+        endif
+        unlet l:buffer
+      endif
+    endfor
   endf
 
   " プロジェクトを開放します
@@ -237,27 +277,69 @@ func! s:Entry(rt, path_abs)
       endif
     endfor
     call add(self.ref_buffers, a:buffer_num)
+    call self.handle_bufevent('on_link',a:buffer_num,[a:buffer_num])
   endf
 
   " バッファー番号をこのプロジェクトから関連付け解除します
   func! l:entry.unlink_buffer(buffer_num) dict
+    call self.handle_bufevent('on_unlink',a:buffer_num,[a:buffer_num])
     call s:remove_value(self.ref_buffers, a:buffer_num)
   endf
 
-  let l:bufnrs = s:get_named_buffers()
-  for i in l:bufnrs
-    if l:entry.path <=# fnamemodify(bufname(i), ":p")
-      call l:entry.link_buffer(i)
-      let l:buffer = s:Buffer(a:rt, i)
-      if !empty(l:buffer)
-        call l:buffer.link_entry(l:entry)
+  func! l:entry.handle_bufevent(funcname, bufnum, args) dict
+    call projectrc#log('handle_'.a:funcname.'.S: '.bufname(a:bufnum))
+    for context in self.contexts
+      if has_key(context, a:funcname)
+        call s:invoke_method(context, a:funcname, a:args)
       endif
-      unlet l:buffer
-    endif
-  endfor
+    endfor
+    call projectrc#log('handle_'.a:funcname.'.E: '.bufname(a:bufnum))
+  endf
+
   call a:rt.put_entry(l:entry)
 
   return l:entry
+endf
+
+func! s:Context(id,entry)
+  let l:context = {
+    \'id':a:id,
+    \'entry':a:entry
+  \}
+
+  func! l:context.getid() dict
+    return self.id
+  endf
+
+  func! l:context.getpath() dict
+    return self.entry.path
+  endf
+
+  func! l:context.defvar(varname, default) dict
+    let l:var = self.entry.variables
+    if !has_key(l:var, a:varname)
+      let l:var[a:varname] = a:default
+    endif
+    return l:var[a:varname]
+  endf
+
+  func! l:context.getvar(varname, ...) dict
+    let l:var = self.entry.variables
+    if !has_key(l:var, a:varname)
+      if a:0>0
+        return a:1
+      endif
+    else
+      return l:var[a:varname]
+    endif
+    return 0
+  endf
+
+  func! l:context.setvar(varname, value) dict
+    let self.entry.variables[a:varname]=a:value
+  endf
+
+  return l:context
 endf
 
 " バッファーにプロジェクト参照オブジェクトを作成します。
@@ -315,14 +397,18 @@ func! s:Buffer(rt, buffer_num)
     call s:remove_value(self.ref_entries, a:entry.path)
   endf
 
-  let l:entry_paths = self.rt.search_entries(l:filepath)
+  let l:entry_paths = a:rt.search_entries(l:filepath)
   for entry_path in l:entry_paths
     call add(l:buffer.ref_entries, entry_path)
-    let l:entry = self.rt.get_entry(entry_path)
+    let l:entry = a:rt.get_entry(entry_path)
     call l:entry.link_buffer(a:buffer_num)
   endfor
 
   call setbufvar(a:buffer_num, "projectrc_buffer", l:buffer)
+
+  if !empty(getbufvar(a:buffer_num, '&filetype'))
+    call projectrc#au_Filetype(a:buffer_num)
+  endif
 
   return l:buffer
 endf
@@ -392,6 +478,14 @@ func! s:get_buffer(buffer_num)
     return 0
   endif
   return getbufvar(a:buffer_num, "projectrc_buffer")
+endf
+
+func! s:invoke_method(dict, method_name, args)
+  if has_key(a:dict, a:method_name)
+    "return call(eval('a:dict.'.a:method_name), a:args, a:dict)
+    return call(a:dict[a:method_name], a:args, a:dict)
+  endif
+  return 0
 endf
 
 func! projectrc#scope()

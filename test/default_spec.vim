@@ -1,25 +1,14 @@
 " vim:set ft=vim ts=8 sts=2 sw=2 tw=0:
 call vspec#hint({'scope': 'projectrc#scope()', 'sid': 'projectrc#sid()'})
 
-func! _require(path)
-  for script_file in split(globpath(&runtimepath, a:path), '\n')
-    execute "source " . script_file
-    break
-  endfor
-endf
-
-call _require("plugin/projectrc.vim")
-call _require("test/helper/temp.vim")
-call _require("test/helper/buffer.vim")
+require 'plugin/projectrc'
+require 'test/lib/temp'
+require 'test/lib/buffer'
 
 describe 'Runtime'
 
   before
     let g:rt = Call('s:get_runtime')
-  end
-
-  after
-    unlet g:rt
   end
 
   it 'フィールド定義'
@@ -46,15 +35,14 @@ end
 describe 'Buffer'
 
   before
-    MakeTempFile NoExist.java
-    execute ":silent! edit " . g:temp_get(0)
-    let g:buffer = getbufvar(g:temp_bufnr(0), "projectrc_buffer")
+    let g:file = temp#new_file('NoExist.java')
+    execute ":silent! edit " . g:file
+    let g:buffer = getbufvar(bufnr(g:file), "projectrc_buffer")
   end
 
   after
-    WipeoutAllBuffers
-    CleanTemp
-    unlet g:buffer
+    call buffer#wipeoutall()
+    call temp#clean()
   end
 
   it 'フィールド定義'
@@ -64,8 +52,8 @@ describe 'Buffer'
   end
 
   it 'フィールド初期値'
-    Expect g:buffer.number      == bufnr(g:temp_get(0))
-    Expect g:buffer.filepath    == fnamemodify(g:temp_get(0), ":p")
+    Expect g:buffer.number      == bufnr(g:file)
+    Expect g:buffer.filepath    == fnamemodify(g:file, ":p")
     Expect g:buffer.ref_entries == []
   end
 
@@ -79,18 +67,16 @@ end
 describe 'Entry'
 
   before
-    MakeTempDir  Sample
-    execute "ProjectrcOpen " . g:temp_get(0)
-    let g:temp = Call("s:normalize_path", fnamemodify(g:temp_get(0),":p"))
-    let g:entry = Call("s:get_runtime").get_entry(g:temp_get(0))
+    let g:dir = temp#new_dir('Sample')
+    execute "ProjectrcOpen " . g:dir
+    let g:temp = Call("s:normalize_path", fnamemodify(g:dir,":p"))
+    let g:entry = Call("s:get_runtime").get_entry(g:dir)
   end
 
   after
-    execute "ProjectrcClose " . g:temp_get(0)
-    WipeoutAllBuffers
-    CleanTemp
-    unlet g:temp
-    unlet g:entry
+    execute "ProjectrcClose " . g:dir
+    call buffer#wipeoutall()
+    call temp#clean()
   end
 
   it 'フィールド定義'

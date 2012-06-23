@@ -2,17 +2,10 @@
 let s:save_cpo=&cpo
 set cpo&vim
 
-command! -nargs=* SetTempSourcePath :call s:set_temp_src(<f-args>)
-command! -nargs=+ MakeTempName :call g:temp_new(<f-args>)
-command! -nargs=+ MakeTempFile :call g:temp_new_file(<f-args>)
-command! -nargs=+ MakeTempDir :call g:temp_new_dir(<f-args>)
-command! CleanTemp :call s:clean_temp()
-
 " TODO OS判定
 let s:sep = "/"
 let s:temp_src = ""
 let s:temp_root = ""
-let s:temp_files = []
 
 func! s:copy_file(src, dist)
   return s:copy_file_unix(a:src, a:dist)
@@ -43,7 +36,7 @@ func! s:remove_file_unix(path, option)
   return 0
 endf
 
-func! s:set_temp_src(...)
+func! temp#set_src(...)
   if a:0 > 0
     let s:temp_src = a:1
   else
@@ -51,32 +44,15 @@ func! s:set_temp_src(...)
   endif
 endf
 
-func! s:clean_temp()
+func! temp#clean()
   if !empty(s:temp_root)
     call s:remove_file(s:temp_root, "r")
   endif
   let s:temp_src   = ""
   let s:temp_root  = ""
-  let s:temp_files = []
 endf
 
-func! g:temp_get(index)
-  if a:index < len(s:temp_files)
-    return s:temp_files[a:index]
-  endif
-  return ""
-endf
-
-func! g:temp_bufnr(indexOrPath)
-  if type(a:indexOrPath) == type(0)
-    return bufnr(g:temp_get(a:indexOrPath))
-  elseif type(a:indexOrPath) == type("")
-    return bufnr(a:indexOrPath)
-  endif
-  return 0
-endf
-
-func! g:temp_new(path)
+func! temp#new(path)
 
   if empty(s:temp_root)
     let s:temp_root = tempname()
@@ -85,12 +61,11 @@ func! g:temp_new(path)
 
   " FIXME: スラッシュで終わるパスは例外にする
   let l:name = simplify(s:temp_root . s:sep . a:path)
-  call add(s:temp_files, l:name)
   return l:name
 endf
 
-func! g:temp_new_file(path)
-  let l:file = g:temp_new(a:path)
+func! temp#new_file(path)
+  let l:file = temp#new(a:path)
   let l:head = fnamemodify(l:file, ":h")
   if !isdirectory(l:head)
     call mkdir(l:head, "p")
@@ -110,19 +85,19 @@ func! g:temp_new_file(path)
   return l:file
 endf
 
-func! g:temp_new_dir(path)
-  let l:dir = g:temp_new(a:path)
+func! temp#new_dir(path)
+  let l:dir = temp#new(a:path)
   if !isdirectory(l:dir)
     call mkdir(l:dir, "p")
   endif
   return l:dir
 endf
 
-func! g:temp_scope()
+func! temp#scope()
   return s:
 endf
 
-func! g:temp_sid()
+func! temp#sid()
   return maparg('<SID>', 'n')
 endf
 nnoremap <SID>  <SID>

@@ -1,17 +1,8 @@
 " vim:set ft=vim ts=8 sts=2 sw=2 tw=0:
-
-echo split(globpath(&runtimepath, 'autoload/vspec.vim'), '\n')
-
-func! Require(path)
-  for script_file in split(globpath(&runtimepath, a:path), '\n')
-    execute "source " . script_file
-  endfor
-endf
-
 call vspec#hint({'scope': 'projectrc#scope()', 'sid': 'projectrc#sid()'})
 
-call Require("test/helper/temp.vim")
-call Require("test/helper/buffer.vim")
+require 'test/lib/temp'
+require 'test/lib/buffer'
 
 describe 'normalize path'
 
@@ -54,15 +45,15 @@ end
 describe 'buffer operation'
 
   before
-    SetTempSourcePath data
+    call temp#set_src('data')
     " TODO ファイルを作成しないオプションを作る
-    MakeTempFile noexist_file.txt
-    MakeTempFile existed_file.txt
+    let g:noexist=temp#new_file('noexist_file.txt')
+    let g:existed=temp#new_file('existed_file.txt')
   end
 
   after
-    WipeoutAllBuffers
-    CleanTemp
+    call buffer#wipeoutall()
+    call temp#clean()
   end
 
   it '編集を開始していないのでバッファに追加されていない'
@@ -70,15 +61,29 @@ describe 'buffer operation'
   end
 
   it '編集を開始すると名前つきバッファとして取得できる'
-    execute ":silent! edit " . g:temp_get(0)
-    execute ":silent! edit " . g:temp_get(1)
-    Expect Call('s:get_named_buffers') == [g:temp_bufnr(0), g:temp_bufnr(1)]
+    execute ":silent! edit " . g:noexist
+    execute ":silent! edit " . g:existed
+    Expect Call('s:get_named_buffers') == [bufnr(g:noexist), bufnr(g:existed)]
   end
 
   it '編集してワイプアウトするとバッファは消える'
-    execute ":silent! edit " . g:temp_get(0)
-    execute ":silent! edit " . g:temp_get(1)
-    WipeoutAllBuffers
+    execute ":silent! edit " . g:noexist
+    execute ":silent! edit " . g:existed
+    call buffer#wipeoutall()
     Expect Call('s:get_named_buffers') == []
+  end
+end
+
+describe 'invoke method'
+
+  before
+    let g:dict = {}
+    func g:dict.test(val)
+      return a:val
+    endf
+  end
+
+  it '呼出に成功する'
+    Expect Call('s:invoke_method',g:dict,'test',['hello']) == 'hello'
   end
 end

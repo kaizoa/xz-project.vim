@@ -1,23 +1,38 @@
 
-function! s:describe__DirectoryOperation()
-  It should succeed directory operation
+describe '一時ディレクトリ'
 
-  let l:name = tempname()
-  Should isdirectory(l:name) ==  0
+  before
+    let g:name = tempname()
+  end
 
-  call mkdir(l:name, "p", 0700)
-  Should isdirectory(l:name) !=  0
+  after
+    if isdirectory(g:name)
+      
+    endif
+  end
 
-endfunction
+  it '作成前は存在しない'
+    Expect isdirectory(g:name) ==  0
+  end
 
-function! s:describe__PathStringOperation()
-  It should succeed path string operation
+  it '取得した名前でディレクトリが作成できる'
+    call mkdir(l:name, "p", 0700)
+    Expect isdirectory(g:name) !=  0
+  end
+end
 
-  Should simplify("test//data.txt") == "test/data.txt"
-  Should simplify("test///data.txt") == "test/data.txt"
-  Should simplify("test////data.txt") == "test/data.txt"
-  Should fnamemodify("abc/test/data/", ":h") == "abc/test/"
+describe 'simplify()'
+  it '不要なスラッシュを消す'
+    Expect simplify("test//data.txt") == "test/data.txt"
+    Expect simplify("test///data.txt") == "test/data.txt"
+    Expect simplify("test////data.txt") == "test/data.txt"
+  end
+end
 
-endfunction
+describe 'fnamemodify()'
+  it ':h 基底パスの取り出し'
+    Expect fnamemodify("abc/test/data/", ":h") == "abc/test/"
+  end
+end
 
 " vim:set ft=vim ts=8 sts=2 sw=2 tw=0:
